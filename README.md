@@ -6,7 +6,7 @@ Gateway for network streams of Livestreamer and sopcast
 Install
 -------
 
-You need Livestreamer from https://github.com/chrippa/livestreamer and optionally Sopcast from http://www.sopcast.com/download/ (if you are in Ubuntu you can use this repo: https://launchpad.net/~venerix/+archive/blug, install only sp-auth). You also need twisted.
+You need Livestreamer (https://github.com/chrippa/livestreamer) and optionally Sopcast, only the cli client sp-sc, (http://www.sopcast.com/download/) (if you are in Ubuntu you can use this repo: https://launchpad.net/~venerix/+archive/blug, install only sp-auth). You also need twisted.
 
 To install just run: (sudo) python setup.py install
 
