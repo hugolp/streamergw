@@ -20,9 +20,10 @@ To start a stream, open your player (f.e. VLC) and open the open stream dialog. 
 http://[ip-of-machine]:8080/[livestreamer/sopcast]?[options]
 
 [ip-of-machine] is the ip of the machine that is running streamergw
+
 [livestreamer/sopcast] you have to chose which one you want
-[options] If sopcast is selected you have only one option url, the channel you want to open.
-If livestreamer is selected you have two options url, same, and stream, the quality you want to select. There are also options to get info (check the code).
+
+[options] If sopcast is selected you have only one option url, the channel you want to open. If livestreamer is selected you have two options url, same, and stream, the quality you want to select. There are also options to get info (check the code).
 
 For example, if you want to open the sopcast channel sop://broker.sopcast.com:3912/74841 and the ip of the machine running streamergw is 192.168.1.10, you have to insert into VLC (or whatever player you are using) stream network dialog:
 
