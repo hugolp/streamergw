@@ -31,6 +31,8 @@ class MCSPBuffer(object):
     def read(self, consumer, size=-1):
         if size < 0:
             size = len(self.buffer)
+        else:
+            size = min(size, len(self.buffer))
     
         data = self.buffer[:size]
         oldposition = consumer.position
