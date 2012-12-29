@@ -16,18 +16,20 @@ class SopcastConsumer(MCSPConsumer):
     
     implements(interfaces.IProducer)
     
-    def __init__(self, sopchannel, thebuffer, consumer):
+    def __init__(self, sopchannel, consumer):
         super(SopcastConsumer, self).__init__()
         
         self.sopchannel = sopchannel
-        self.buffer = thebuffer
+        self.buffer = None
         self.consumer = consumer
         
         self._send_data = False
         
         self._connecting_defer = None
     
-    def beginTransfer(self):
+    def beginTransfer(self, thebuffer):
+        self.buffer = thebuffer
+        
         self._send_data = True #does resumeProducing get called the first time, or is it assumed?
         self.buffer.addConsumer(self)
         self.consumer.registerProducer(self, True)
@@ -51,13 +53,17 @@ class SopcastConsumer(MCSPConsumer):
         self._send_data = False
     
     def stopProducing(self):
-        self.buffer.removeConsumer(self)
+        if self.consumer.producer:
+            self.consumer.unregisterProducer()
+        if not self.consumer.finished:
+            self.consumer.finish()
+        if self.buffer:
+            self.buffer.removeConsumer(self)
         self.sopchannel._removeConsumer(self)
     
     #Callback
     def CBGone(self, ignore):
-        self.buffer.removeConsumer(self)
-        self.sopchannel._removeConsumer(self)
+        self.stopProducing()
 
 
 class SopcastChannel(Protocol):
@@ -75,7 +81,7 @@ class SopcastChannel(Protocol):
         self._sp_sc_url = None
         self._pid = None
         
-        self._buffer = MCSPBuffer()
+        self._buffer = None
         self._protocol_connected = False
         self._transport_paused = False
         
@@ -85,9 +91,12 @@ class SopcastChannel(Protocol):
         
         self._reset = False
     
+    def geturl(self):
+        return self._url
+    url = property(geturl)
+    
     #Protocol methods
     def dataReceived(self, bytes):
-        #print 'dataReceived: %s' %str(bytes)
         self._buffer.write(bytes)
         
         #notifying consumers the new data
@@ -118,11 +127,13 @@ class SopcastChannel(Protocol):
     #Agent callbacks
     def cbAgentSuccess(self, response):
         print 'DEBUG: Connection with sp-sc succesful, setting Protocol.'
+        self._buffer = MCSPBuffer()
+        
         #starting consumers
         for sopconsumer in self._sopconsumers:
             sopconsumer.consumer.setResponseCode(200)
             sopconsumer.consumer.responseHeaders.setRawHeaders("content-type", ["video/raw"])
-            sopconsumer.beginTransfer()
+            sopconsumer.beginTransfer(self._buffer)
         
         response.deliverBody(self)
         self.transport.resumeProducing()
@@ -154,7 +165,7 @@ class SopcastChannel(Protocol):
             #give sp-sc SOPCAST_INITIAL_TIMEOUT seconds to do its thing
             self._calllater = reactor.callLater (self.SOPCAST_INITIAL_TIMEOUT, self._initialCheckAlive)
         
-        sopconsumer = SopcastConsumer(self, self._buffer, request)
+        sopconsumer = SopcastConsumer(self, request)
         self._sopconsumers.append(sopconsumer)
         request.notifyFinish().addBoth(sopconsumer.CBGone)
         if self._protocol_connected:
@@ -220,13 +231,10 @@ class SopcastChannel(Protocol):
         self._transport_paused = False
         
         for sopconsumer in self._sopconsumers:
-            if sopconsumer.consumer.producer:
-                sopconsumer.consumer.unregisterProducer()
-            sopconsumer.consumer.finish()
-            #self._buffer.removeConsumer(sopconsumer)
+            sopconsumer.stopProducing()
         #self._sopconsumers = []
         
-        self._buffer = MCSPBuffer()
+        self._buffer = None
         
         self._endStream()
         self._sp_sc_url = None
@@ -249,8 +257,4 @@ class SopcastChannel(Protocol):
         if len(self._sopconsumers) <= 0 and not self._reset:
             self._resetChannel()
             self._server.removeChannel(self)
-    
-    def geturl(self):
-        return self._url
-    url = property(geturl)
 

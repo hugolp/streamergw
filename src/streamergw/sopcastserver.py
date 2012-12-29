@@ -1,6 +1,6 @@
 from twisted.web import resource
 
-from distutils.spawn import spawn, find_executable
+from distutils.spawn import find_executable
 
 from sopcastchannel import SopcastChannel
 
