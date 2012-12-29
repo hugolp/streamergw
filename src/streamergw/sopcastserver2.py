@@ -21,16 +21,6 @@ class SopcastHttpServer(resource.Resource):
     def render_GET(self, request):
         request.responseHeaders.setRawHeaders("server", ["Sopcast HTTP Server"])
         
-        stop = request.args and "stop" in request.args and request.args["stop"][0]
-        if stop:
-            try:
-                channel = self.channels[stop]
-            except KeyError:
-                request.setResponseCode(500)
-                return "<html><body>Error, channel to stop not found</body></html>"
-            
-            return channel.removeRequest(request)
-        
         url = request.args and "url" in request.args and request.args["url"][0]
         if not url:
             request.setResponseCode(500)

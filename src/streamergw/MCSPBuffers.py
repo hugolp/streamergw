@@ -33,7 +33,7 @@ class MCSPBuffer(object):
             size = len(self.buffer)
         else:
             size = min(size, len(self.buffer))
-    
+        
         data = self.buffer[:size]
         oldposition = consumer.position
         consumer.position += size
