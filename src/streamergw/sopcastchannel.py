@@ -24,8 +24,6 @@ class SopcastConsumer(MCSPConsumer):
         self.consumer = consumer
         
         self._send_data = False
-        
-        self._connecting_defer = None
     
     def beginTransfer(self, thebuffer):
         self.buffer = thebuffer
@@ -53,10 +51,6 @@ class SopcastConsumer(MCSPConsumer):
         self._send_data = False
     
     def stopProducing(self):
-        if self.consumer.producer:
-            self.consumer.unregisterProducer()
-        if not self.consumer.finished:
-            self.consumer.finish()
         if self.buffer:
             self.buffer.removeConsumer(self)
         self.sopchannel._removeConsumer(self)
@@ -131,6 +125,7 @@ class SopcastChannel(Protocol):
         
         #starting consumers
         for sopconsumer in self._sopconsumers:
+            sopconsumer.connecting_defer.cancel()
             sopconsumer.consumer.setResponseCode(200)
             sopconsumer.consumer.responseHeaders.setRawHeaders("content-type", ["video/raw"])
             sopconsumer.beginTransfer(self._buffer)
@@ -231,7 +226,10 @@ class SopcastChannel(Protocol):
         self._transport_paused = False
         
         for sopconsumer in self._sopconsumers:
-            sopconsumer.stopProducing()
+            if sopconsumer.consumer.producer:
+                sopconsumer.consumer.unregisterProducer()
+            if not sopconsumer.consumer.finished:
+                sopconsumer.consumer.finish()
         #self._sopconsumers = []
         
         self._buffer = None
