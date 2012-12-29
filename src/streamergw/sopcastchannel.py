@@ -88,7 +88,7 @@ class SopcastChannel(object):
         while inport == outport:
             outport = randint(10025, 65535)
         
-        self._pid = subprocess.Popen([self._path, self._url, str(inport), str(outport)])#, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        self._pid = subprocess.Popen([self._path, self._url, str(inport), str(outport)], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         
         localIP = getLocalIP(clientIP)
         self._sp_sc_url = 'http://' + localIP + ':' + str(outport) + '/tv.asf'
