@@ -125,7 +125,6 @@ class SopcastChannel(Protocol):
         
         #starting consumers
         for sopconsumer in self._sopconsumers:
-            sopconsumer.connecting_defer.cancel()
             sopconsumer.consumer.setResponseCode(200)
             sopconsumer.consumer.responseHeaders.setRawHeaders("content-type", ["video/raw"])
             sopconsumer.beginTransfer(self._buffer)
