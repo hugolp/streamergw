@@ -158,6 +158,7 @@ class LSChannel(object):
             if not chunk:
                 self._reset_channel()
                 self._server.removeChannel(self)
+                return
             
             self._buffer.write(chunk)
     
