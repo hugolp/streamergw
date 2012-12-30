@@ -37,7 +37,7 @@ class LSHttpServer(resource.Resource):
             try:
                 channel = LSChannel(self, self.livestreamer.resolve_url(url), url)
             except Exception as e:
-                print str(e)
+                print 'Not able to adquire channel: %s' %str(e)
                 request.setResponseCode(500)
                 return "<html><body>Could not find a channel with that url %s</body></html>" %url
             
@@ -48,7 +48,7 @@ class LSHttpServer(resource.Resource):
                 request.setResponseCode(500)
                 return "<html><body>Channel has no stream with quality %s</body></html>" %quality
         except Exception as e:
-            print e
+            print 'Was not able to access the channel stream: %s' %str(e)
             request.setResponseCode(500)
             return "<html><body>Error accesing the channel</body></html>"
         
