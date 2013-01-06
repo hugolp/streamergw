@@ -99,6 +99,7 @@ class SopcastChannel(object):
             self._pidlock.acquire()
             if self._pid is None:
                 self._pidlock.release()
+                print 'bye, bye, california'
                 return
             line = self._pid.stdout.readline()
             self._pidlock.release()
