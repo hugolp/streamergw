@@ -3,6 +3,7 @@ from twisted.internet import interfaces, defer
 from zope.interface import implements
 
 from MCSPBuffers import MCSPBuffer, MCSPConsumer
+from utils import returnHTTPError
 
 
 class LSConsumer(MCSPConsumer):
@@ -49,7 +50,6 @@ class LSConsumer(MCSPConsumer):
             self.defer.callback(self)
 
 
-#TODO I suspect there is a race condition if the buffers get empty in the middle of the stream, but I could not trigger it
 class LSChannel(object):
     """A livestreamer channel.
     """
@@ -95,21 +95,18 @@ class LSChannel(object):
     def streamRequest(self, request, quality, forcequality = False):
         try:
             if not self.hasQuality(quality): #hasQuality() sets self._streams in case they are not there already, self._streams should be set up manually if this is removed
-                print "Bad quality param %s" %quality
-                request.setResponseCode(404)
-                return "<html><body>Error stream quality %s not found</body></html>" % quality
+                return returnHTTPError(request, 404, "<html><body>Error stream quality %s not found</body></html>" % quality,
+                                       debugprint="Bad quality param %s" %quality)
         except Exception as e:
-            print e
-            request.setResponseCode(500)
-            return "<html><body>Error accesing the channel</body></html>"
+            return returnHTTPError(request, 500, "<html><body>Error accesing the channel</body></html>",
+                                   debugprint="Error accessing the channel %s" %str(e))
         
         #if not self._streams:
             #try:
                 #self._streams = self._channel.get_streams()
             #except Exception as e:
-                #print "Error getting stream list, %s" %str(e)
-                #request.setResponseCode(404)
-                #return "<html><body>Error retrieving the list of streams for this channel</body></html>"
+                #returnHTTPError(request, 404, "<html><body>Error retrieving the list of streams for this channel</body></html>",
+                #                debugprint="Error getting stream list, %s" %str(e))
         
         if forcequality and self._streamQuality and self._streamQuality != quality:
             if self._fd:
@@ -123,11 +120,10 @@ class LSChannel(object):
             try:
                 self._beginStream(quality)
             except Exception as e:
-                print "Error creating fd: " + e
                 self._reset_channel()
                 self._server.removeChannel(self)
-                request.setResponseCode(404)
-                return "<html><body>%s</body></html>" % e
+                return returnHTTPError(request, 404, "<html><body>%s</body></html>" %str(e),
+                                       debugprint="Error creating fd: %s" %str(e))
         
         lsconsumer = LSConsumer(self, request)
         self._consumers.append(lsconsumer)

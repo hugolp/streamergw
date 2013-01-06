@@ -15,3 +15,9 @@ def getLocalIP(address):
         del s
     return client
 
+def returnHTTPError(request, errorcode, errorresponse, debugprint=None):
+    if debugprint:
+        print debugprint
+    request.setResponseCode(errorcode)
+    return errorresponse
+

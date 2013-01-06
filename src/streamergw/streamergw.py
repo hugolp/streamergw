@@ -6,6 +6,8 @@ from sopcastserver import SopcastHttpServer
 
 
 def main():
+    print "StreamerGW start..."
+    
     root = resource.Resource()
     root.putChild('livestreamer', LSHttpServer())
     
@@ -13,10 +15,12 @@ def main():
     sopcastpath = SopcastHttpServer.getPath()
     if sopcastpath:
         root.putChild('sopcast', SopcastHttpServer(sopcastpath))
-
+    
     site = server.Site(root)
     reactor.listenTCP(8080, site)
     reactor.run()
+    
+    print "Bye"
 
 if __name__ == '__main__':
     main()

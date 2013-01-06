@@ -3,7 +3,20 @@ from twisted.web import resource
 from livestreamer import Livestreamer
 
 from lschannel import LSChannel
+from utils import returnHTTPError
 
+
+class NoURL(Exception):
+    pass
+
+class NoUserName(Exception):
+    pass
+
+class NoPassword(Exception):
+    pass
+
+class QualityNotFound(Exception):
+    pass
 
 class LSHttpServer(resource.Resource):
     isLeaf = True
@@ -16,47 +29,35 @@ class LSHttpServer(resource.Resource):
         
         info = request.args and "info" in request.args and request.args["info"][0]
         if info:
-            return self.handleInfoRequest(request, info)
+            return self._handleInfoRequest(request, info)
         
         quality = request.args and "stream" in request.args and request.args["stream"][0]
         if not quality:
             quality = "best"
         
-        url = self._handleURL(request.args)
-        if not url:
-             request.setResponseCode(500)
-             return "<html><body>Error Missing URL parameter</body></html>"
+        try:
+            url = self._handleURL(request.args)
+        except NoURL:
+            return returnHTTPError(request, 500, "<html><body>Error Missing URL parameter</body></html>",
+                                   debugprint="Wrong URL")
+        except (NoUserName, NoPassword):
+            return returnHTTPError(request, 500, "<html><body>Error Missing login parameter</body></html>",
+                                   debugprint="Wrong login parameters")
         
         print "Q:", quality
         print "U:", url
         
-        add = False
         try:
-            channel = self.channels[url]
-        except KeyError:
-            try:
-                channel = LSChannel(self, self.livestreamer.resolve_url(url), url)
-            except Exception as e:
-                print 'Not able to adquire channel: %s' %str(e)
-                request.setResponseCode(500)
-                return "<html><body>Could not find a channel with that url %s</body></html>" %url
-            
-            add = True
-        
-        try:
-            if not channel.hasQuality(quality):
-                request.setResponseCode(500)
-                return "<html><body>Channel has no stream with quality %s</body></html>" %quality
+            channel = self._getChannel(url, checkquality=quality, add=True)
+        except QualityNotFound:
+            return returnHTTPError(request, 500, "<html><body>Channel has no stream with quality %s</body></html>" %quality,
+                                   debugprint='Quality not found')
         except Exception as e:
-            print 'Was not able to access the channel stream: %s' %str(e)
-            request.setResponseCode(500)
-            return "<html><body>Error accesing the channel</body></html>"
-        
-        if add:
-            self.channels[url] = channel
+            return returnHTTPError(request, 500, "<html><body>Error accesing the channel</body></html>",
+                                   debugprint='Was not able to access the channel stream: %s' %str(e))
         
         change = request.args and "change" in request.args and request.args["change"][0]
-        if change is 'True':
+        if change:
             return channel.streamStream(request, quality, forcequality = True)
         
         return channel.streamRequest(request, quality)
@@ -64,76 +65,105 @@ class LSHttpServer(resource.Resource):
     def _handleURL(self, requestargs):
         url = requestargs and "url" in requestargs and requestargs["url"][0]
         if not url:
-             return None
+             raise NoURL()
         url = url.lower()
+        
+        username = requestargs and "username" in requestargs and requestargs["username"][0]
+        password = requestargs and "password" in requestargs and requestargs["password"][0]
         
         #removing the specific server from twitch.tv url
         if 'twitch.tv' in url:
             url = 'http://twitch.tv' + url.split('twitch.tv', 1)[1]
         
+        #Login info is mandatory for gomtv
+        if 'gomtv.net' in url:
+            if not username:
+                raise NoUserName()
+            if not password:
+                raise NoPassword()
+            
+            self.livestreamer.set_plugin_option("gomtv", "username", username)
+            self.livestreamer.set_plugin_option("gomtv", "password", password)
+        
         return url
     
-    def _getChannel(self, url):
+    def _getChannel(self, url, checkquality=None, add=False):
         channel = None
+        needadd = False
+        
         try:
             channel = self.channels[url]
         except KeyError:
             try:
-                channel = LSChannel(self, self.livestreamer.resolve_url(url))
-            except e:
+                channel = LSChannel(self, self.livestreamer.resolve_url(url), url)
+            except Exception as e:
                 raise e
-                return
+            
+            needadd = True
+        
+        if checkquality:
+            try:
+                quality = channel.hasQuality(checkquality)
+            except Exception as e:
+                raise e
+            if not quality:
+                raise QualityNotFound()
+        
+        if add and needadd:
+            self.channels[url] = channel
         
         return channel
     
     def _handleInfoRequest(self, request, info):
-        if info is "qualitylist":
-            url = self._handleURL(request.args)
-            if not url:
-                request.setResponseCode(500)
-                return "<html><body>Error Missing URL parameter</body></html>"
+        print info
+        if info == "qualitylist":
+            try:
+                url = self._handleURL(request.args)
+            except NoURL:
+                print 'NoURL'
+                return returnHTTPError(request, 500, "<html><body>Error Missing URL parameter</body></html>")
+            except (NoUserName, NoPassword):
+                print 'NoLog'
+                return returnHTTPError(request, 500, "<html><body>Error Missing login parameter</body></html>")
             
             try:
                 channel = self._getChannel(url)
             except Exception as e:
-                print e
-                request.setResponseCode(500)
-                return "<html><body>Could not find a channel with that url %s</body></html>" %url
+                print 'Something channel'
+                return returnHTTPError(request, 500, "<html><body>Could not find a channel with that url %s</body></html>" %url)
             
             try:
                 qualities = channel.getChannelQualities()
             except Exception as e:
-                print e
-                request.setResponseCode(500)
-                return "<html><body>Error accessing the streams of the channel</body></html>"
+                print 'something qualities'
+                return returnHTTPError(request, 500, "<html><body>Error accessing the streams of the channel</body></html>" %url)
             
             request.setResponseCode(200)
             request.responseHeaders.setRawHeaders("content-type", ["text/plain"])
             return "<html><body>%s</body></html>" %','.join(qualities)
         
-        if info is 'playingquality':
-            url = self._handleURL(request.args)
-            if not url:
-                request.setResponseCode(500)
-                return "<html><body>Error Missing URL parameter</body></html>"
+        if info == 'playingquality':
+            try:
+                url = self._handleURL(request.args)
+            except NoURL:
+                return returnHTTPError(request, 500, "<html><body>Error Missing URL parameter</body></html>")
+            except (NoUserName, NoPassword):
+                return returnHTTPError(request, 500, "<html><body>Error Missing login parameter</body></html>")
             
             try:
                 channel = channels[url]
             except KeyError:
-                request.setResponseCode(500)
-                return "<html><body>Channel is not connected</body></html>"
+                return returnHTTPError(request, 500, "<html><body>Channel is not connected</body></html>")
             
             if not channel.streamQuality:
-                request.setResponseCode(500)
-                return "<html><body>Channel is not connected</body></html>"
+                return returnHTTPError(request, 500, "<html><body>Channel is not connected</body></html>")
             
             request.setResponseCode(200)
             request.responseHeaders.setRawHeaders("content-type", ["text/plain"])
             return "<html><body>%s</body></html>" %channel.streamQuality
         
         else:
-            request.setResponseCode(500)
-            return "<html><body>Unknown info command %s</body></html>" %info
+            return returnHTTPError(request, 500, "<html><body>Unknown info command %s</body></html>" %info)
     
     def removeChannel(self, channel):
         try:
