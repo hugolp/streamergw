@@ -1,7 +1,7 @@
 from twisted.internet import reactor
 from twisted.web import server
 
-import subprocess
+import subprocess, threading
 from random import randint
 from os import kill
 
@@ -22,6 +22,7 @@ class SopcastChannel(object):
         self._url = url
         self._sp_sc_url = None
         self._pid = None
+        self._pidlock = threading.Lock()
         
         self._requests = []
         self.reference = 0
@@ -93,11 +94,41 @@ class SopcastChannel(object):
         localIP = getLocalIP(clientIP)
         self._sp_sc_url = 'http://' + localIP + ':' + str(outport) + '/tv.asf'
     
+    def _readSoapConnection(self):
+        while(1):
+            self._pidlock.acquire()
+            if self._pid is None:
+                self._pidlock.release()
+                return
+            line = self._pid.stdout.readline()
+            self._pidlock.release()
+            
+            if 'nblockAvailable' in line:
+                col = line.split()
+                try:
+                    pr = col[2].split('=')
+                    try:
+                        percent = int(pr[1])
+                    except:
+                        percent = 0
+                    if percent > 100:
+                        percent = -1
+                    reactor.callFromThread(self._reportStatus, percent)
+                except:
+                    pass
+    
+    def _reportStatus(self, status):
+        print 'Sopcast buffer status: %d' %status
+    
     def _endStream(self):
+        self._pidlock.acquire()
         if not self._pid:
+            self._pidlock.release()
             return
         kill(self._pid.pid, 9)
         self._pid = None
+        self._pidlock.release()
+        
         self._sp_sc_url = None
     
     def _requestGoneCB(self, ignore, request):
@@ -117,7 +148,8 @@ class SopcastChannel(object):
             self._server.removeChannel(self)
         
         else: #its running fine, connecting to the sp-sc socket
-            #TODO monitor the output of the subprocess sp-sc, nblockAvailable will show the % of the sp-sc buffer, find how to get other info
+            reactor.callInThread(self._readSoapConnection)
+            
             for request in self._requests:
                 self.reference += 1
                 request.setResponseCode(200)

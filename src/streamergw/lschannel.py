@@ -150,8 +150,15 @@ class LSChannel(object):
     def _consumerSentData(self):
         if self._buffer.length < self.LS_MAX_BUFFER_SIZE:
             chunk = ''
-            chunk = self._fd.read(1024)
+            try:
+                chunk = self._fd.read(1024)
+            except Exception as e:
+                print 'DEBUG: Read failed, finishing, %s' %str(e)
+                self._reset_channel()
+                self._server.removeChannel(self)
+                return
             if not chunk:
+                print 'DEBUG: chunk empty, finishing'
                 self._reset_channel()
                 self._server.removeChannel(self)
                 return
