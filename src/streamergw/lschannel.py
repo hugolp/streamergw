@@ -120,6 +120,7 @@ class LSChannel(object):
             try:
                 self._beginStream(quality)
             except Exception as e:
+                print 'DEBUG: Exception starting livestreamer stream: %s', str(e)
                 self._reset_channel()
                 self._server.removeChannel(self)
                 return returnHTTPError(request, 404, "<html><body>%s</body></html>" %str(e),
@@ -131,10 +132,11 @@ class LSChannel(object):
         request.setResponseCode(200)
         request.responseHeaders.setRawHeaders("content-type", ["video/raw"])
         
-        self._consumerSentData() #initial read
-        
         d = lsconsumer.beginTransfer(self._buffer)
         d.addCallback(self._CBremoveConsumer)
+        
+        if len(self._consumers) <= 1:
+            self._consumerSentData() #forcing initial read
         
         return server.NOT_DONE_YET
     
@@ -153,7 +155,7 @@ class LSChannel(object):
             try:
                 chunk = self._fd.read(1024)
             except Exception as e:
-                print 'DEBUG: Read failed, finishing, %s' %str(e)
+                print 'DEBUG: Read failed, finishing: %s' %str(e)
                 self._reset_channel()
                 self._server.removeChannel(self)
                 return
@@ -172,6 +174,7 @@ class LSChannel(object):
             return
         
         if not self._reset and len(self._consumers) <= 0:
+            print 'DEBUG: Last consumer is gone, removing channel'
             self._reset_channel()
             self._server.removeChannel(self)
     
